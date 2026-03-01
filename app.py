@@ -1,98 +1,100 @@
+# app.py
+
+from dotenv import load_dotenv
 import os
-import shutil
-import uuid
+from groq import Groq
+import faiss
+import numpy as np
+from sentence_transformers import SentenceTransformer
 
-from langchain_community.document_loaders import (
-    DirectoryLoader,
-    PyPDFLoader,
-    TextLoader
-)
+# -----------------------------
+# Load environment variables
+# -----------------------------
+load_dotenv()
+api_key = os.getenv("GROQ_API_KEY")
 
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import HuggingFaceEmbeddings
+if not api_key:
+    raise ValueError("GROQ_API_KEY not found in .env file. Check your .env!")
 
-# Folder Setup
-DATA_DIR = "data"
-DB_DIR = "chroma_db"
+print("Loaded Key:", api_key)  # Debug to confirm key loaded
 
-os.makedirs(DATA_DIR, exist_ok=True)
-# Startup Cleanup
-def clear_old_database():
-    if os.path.exists(DB_DIR):
-        shutil.rmtree(DB_DIR)
-        print("Old database cleared.")
-# Load Documents
-def load_documents():
-    print("Loading documents...")
+# -----------------------------
+# Initialize Groq client
+# -----------------------------
+client = Groq(api_key=api_key)
 
-    pdf_loader = DirectoryLoader(
-        DATA_DIR,
-        glob="**/*.pdf",
-        loader_cls=PyPDFLoader
+# -----------------------------
+# Load embedding model
+# -----------------------------
+embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
+# -----------------------------
+# Load documents from file
+# -----------------------------
+# Make sure you have data.txt in project root with text data
+with open("data.txt", "r", encoding="utf-8") as f:
+    documents = f.readlines()
+
+# -----------------------------
+# Create embeddings
+# -----------------------------
+doc_embeddings = embedding_model.encode(documents)
+doc_embeddings = np.array(doc_embeddings).astype("float32")
+
+# -----------------------------
+# Create FAISS index
+# -----------------------------
+dimension = doc_embeddings.shape[1]
+index = faiss.IndexFlatL2(dimension)
+index.add(doc_embeddings)
+
+# -----------------------------
+# Retrieval function
+# -----------------------------
+def retrieve(query, top_k=3):
+    query_embedding = embedding_model.encode([query])
+    query_embedding = np.array(query_embedding).astype("float32")
+    distances, indices = index.search(query_embedding, top_k)
+    return [documents[i] for i in indices[0]]
+
+# -----------------------------
+# Generate answer function
+# -----------------------------
+def generate_answer(query):
+    retrieved_docs = retrieve(query)
+    context = "\n".join(retrieved_docs)
+
+    prompt = f"""
+Answer the question based only on the context below.
+
+Context:
+{context}
+
+Question:
+{query}
+
+Answer:
+"""
+
+    # -----------------------------
+    # Groq chat completion
+    # -----------------------------
+    response = client.chat.completions.create(
+        model="groq/compound-mini",  # <-- use a model your key can access
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2
     )
 
-    text_loader = DirectoryLoader(
-        DATA_DIR,
-        glob="**/*.txt",
-        loader_cls=TextLoader
-    )
+    return response.choices[0].message.content, retrieved_docs
 
-    documents = []
-    documents.extend(pdf_loader.load())
-    documents.extend(text_loader.load())
-
-    if not documents:
-        raise ValueError("No documents found in the data directory.")
-
-    print(f"Loaded {len(documents)} documents.")
-    return documents
-# Metadata Cleaning
-def clean_metadata(documents):
-    for doc in documents:
-        doc.metadata = {
-            "source": str(doc.metadata.get("source", "unknown"))
-        }
-    return documents
-# Chunking
-def chunk_documents(documents):
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=3000,
-        chunk_overlap=200
-    )
-
-    splits = splitter.split_documents(documents)
-    print(f"{len(splits)} chunks created.")
-    return splits
-# Create Vector Database
-def create_vector_db(splits):
-    print("Generating embeddings...")
-
-    embeddings = HuggingFaceEmbeddings(
-        model_name="sentence-transformers/all-MiniLM-L6-v2"
-    )
-
-    collection_name = f"rag_collection_{uuid.uuid4()}"
-
-    vector_db = Chroma.from_documents(
-        documents=splits,
-        embedding=embeddings,
-        persist_directory=DB_DIR,
-        collection_name=collection_name
-    )
-
-    vector_db.persist()
+# -----------------------------
+# Main execution
+# -----------------------------
 if __name__ == "__main__":
-    print("Starting RAG document processing...")
+    query = input("Enter your question: ")
+    answer, sources = generate_answer(query)
 
-    clear_old_database()
-
-    documents = load_documents()
-    documents = clean_metadata(documents)
-
-    splits = chunk_documents(documents)
-
-    create_vector_db(splits)
-
-    print("Vector database created successfully!")
+    print("\nAnswer:\n", answer)
+    print("\nSources:")
+    for src in sources:
+        print("-", src.strip())
