@@ -1,6 +1,7 @@
 Java is a high-level programming language.
 OOPS concepts in Java are Encapsulation, Inheritance, Polymorphism, and Abstraction.
 <<<<<<< HEAD
+<<<<<<< HEAD
 Spring Boot is a Java framework for building web applications.
 Artificial Intelligence is the simulation of human intelligence by machines.
 
@@ -9,6 +10,9 @@ Machine Learning is a subset of Artificial Intelligence that allows systems to l
 Deep Learning is a type of Machine Learning based on neural networks.
 
 Python is a popular programming language used in AI development.
+=======
+Spring Boot is a Java framework for building web applications.
+>>>>>>> 1e05be0ff380682155cace53c505a473494222f1
 =======
 Spring Boot is a Java framework for building web applications.
 >>>>>>> 1e05be0ff380682155cace53c505a473494222f1
