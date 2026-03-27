@@ -29,6 +29,10 @@ class UploadState(rx.State):
             build_vectorstore()
 
     async def handle_upload(self, files: list[rx.UploadFile]):
+        # Prevent empty uploads from triggering the success popup
+        if not files:
+            return
+
         self.is_uploading = True
         yield
         
@@ -115,6 +119,7 @@ def upload():
                         color_scheme="blue",
                         margin_top="24px",
                         border_radius="8px",
+                        disabled=rx.selected_files("upload1").length() == 0,
                         box_shadow="0 4px 14px 0 rgba(0, 118, 255, 0.39)",
                         style={"_hover": {"transform": "translateY(-1px)", "box_shadow": "0 6px 20px rgba(0,118,255,0.23)"}}
                     )
