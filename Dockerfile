@@ -19,13 +19,11 @@ COPY . .
 # Fix for AST compilation: Provides a dummy key to bypass LangChain checks during build
 ENV GROQ_API_KEY="dummy_key_to_pass_build"
 
-# Export the Reflex frontend asynchronously to pre-build the NextJS cluster
-# Doing this during Docker Build ensures the container boots quickly without runtime compilation
-RUN reflex export --frontend-only --no-zip
-
 # Define exposed ports for the backend and frontend
 EXPOSE 8000
-EXPOSE 3000
+# Expose port required by Hugging Face Spaces natively
+EXPOSE 7860
+ENV PORT=7860
 
 # Default execution startup command for production deployment
 CMD reflex run --env prod
